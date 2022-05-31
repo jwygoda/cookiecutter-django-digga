@@ -1,0 +1,18 @@
+imports = [ "git.hooks" ]
+
+[devshell]
+packages = [
+]
+
+[[commands]]
+package = "git"
+category = "vcs"
+
+[git.hooks]
+enable = true
+
+[git.hooks.pre-commit]
+text = """
+#!/usr/bin/env bash
+echo "Do something on pre-commit"
+"""

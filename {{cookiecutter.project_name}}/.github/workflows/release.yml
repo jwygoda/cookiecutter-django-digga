@@ -1,0 +1,47 @@
+name: "Release"
+
+on:
+  push:
+    tags:
+    - '*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      HOSTNAME: {{cookiecutter.domain_name}}
+      SSH_KNOWN_HOSTS: $"{{" secrets.SSH_KNOWN_HOSTS "}}"
+      SSH_PRIVATE_KEY: $"{{" secrets.SSH_PRIVATE_KEY "}}"
+    steps:
+    - uses: actions/checkout@v2.4.0
+      with:
+        submodules: true
+        fetch-depth: 0
+    # https://github.com/cachix/install-nix-action/issues/56#issuecomment-1030697681
+    - run: |
+        # Create with liberal rights, otherwise cache action will complain
+        # about permission errors.
+        sudo mkdir -p /nix/store
+        sudo chmod -R 777 /nix
+    - name: Cache nix env
+      uses: actions/cache@v2
+      with:
+        path: |
+          # See https://github.com/actions/cache/pull/726
+          /nix/store/**
+        key: $"{{" runner.os "}}"-nix-store
+    - uses: cachix/install-nix-action@v16
+      with:
+        extra_nix_config: |
+          system-features = nixos-test benchmark big-parallel kvm recursive-nix
+    - name: Add known_hosts
+      run: |
+        mkdir -m 700 -p ~/.ssh
+        echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+        chmod 644 ~/.ssh/known_hosts
+    - name: Deploy
+      run: |
+        eval $(ssh-agent -s)
+        echo "$SSH_PRIVATE_KEY" | ssh-add -
+        nix develop --command -- deploy '.#do' --ssh-user nixos --hostname $HOSTNAME
+      if: $"{{" env.SSH_PRIVATE_KEY != '' "}}"
